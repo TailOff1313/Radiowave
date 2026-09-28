@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Рация онлайн + чат</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; min-height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(circle at 50% 0%, #1e2a3a 0%, #0b0f14 70%);
+    color: #e6edf3;
+    display: flex; align-items: center; justify-content: center;
+    user-select: none;
+    padding: 16px 0;
+  }
+  .app { width: 100%; max-width: 420px; padding: 12px 24px 24px; text-align: center; }
+  h1 { font-size: 22px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; margin: 0 0 6px; color: #7dd3fc; }
+  .sub { font-size: 12px; color: #6b7a8d; margin-bottom: 22px; letter-spacing: 1px; }
+  .panel { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px; }
+  #password { width: 100%; padding: 14px 16px; font-size: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.35); color: #e6edf3; outline: none; text-align: center; letter-spacing: 1px; transition: border-color .2s; }
+  #password:focus { border-color: #38bdf8; }
+  .btns { display: flex; gap: 10px; margin-top: 12px; }
+  button { flex: 1; padding: 13px; font-size: 14px; font-weight: 600; border: none; border-radius: 12px; cursor: pointer; letter-spacing: .5px; transition: transform .08s, opacity .2s; }
+  button:active { transform: scale(.97); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-create { background: #0ea5e9; color: #04121c; }
+  .btn-join { background: #22c55e; color: #04140a; }
+  .btn-leave { background: #ef4444; color: #1a0505; }
+  #radioPanel { display: none; }
+  #radioPanel.active { display: block; }
+
+  .chat-only-label {
+    display: flex; align-items: center; gap: 8px; justify-content: center;
+    margin-top: 14px; font-size: 12px; color: #94a3b8; cursor: pointer;
+    user-select: none;
+  }
+  .chat-only-label input { accent-color: #0ea5e9; width: 15px; height: 15px; cursor: pointer; }
+
+  .status { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; padding: 6px 14px; border-radius: 100px; background: rgba(255,255,255,0.06); margin-bottom: 20px; letter-spacing: .5px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #64748b; }
+  .dot.on { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
+  .dot.wait { background: #f59e0b; box-shadow: 0 0 10px #f59e0b; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+
+  .notice {
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    color: #fbbf24;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 12px;
+    margin-bottom: 14px;
+    line-height: 1.5;
+  }
+
+  .ptt { width: 160px; height: 160px; border-radius: 50%; margin: 0 auto; background: linear-gradient(160deg, #334155, #1e293b); border: 3px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; letter-spacing: 2px; color: #94a3b8; cursor: pointer; transition: all .12s; touch-action: none; box-shadow: 0 10px 30px rgba(0,0,0,.5); text-align: center; padding: 0 12px; }
+  .ptt.transmitting { background: linear-gradient(160deg, #f43f5e, #be123c); border-color: #fda4af; color: #fff; box-shadow: 0 0 40px rgba(244,63,94,.7), 0 10px 30px rgba(0,0,0,.5); transform: scale(.96); }
+  .ptt.disabled { opacity: .35; pointer-events: none; }
+
+  .hint { font-size: 12px; color: #5c6b7d; margin-top: 22px; line-height: 1.6; }
+  .vumeter { height: 4px; border-radius: 4px; background: rgba(255,255,255,.08); margin: 16px auto 0; width: 160px; overflow: hidden; }
+  .vumeter i { display: block; height: 100%; width: 0%; background: #22c55e; transition: width .06s; }
+
+  .chat { margin-top: 20px; border-top: 1px solid rgba(255,255,255,.06); padding-top: 16px; }
+  .chat-title { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; text-align: left; margin-bottom: 8px; }
+  .chat-log { height: 130px; overflow-y: auto; background: rgba(0,0,0,.3); border-radius: 12px; padding: 10px 12px; text-align: left; font-size: 13px; line-height: 1.5; scrollbar-width: thin; scrollbar-color: #334155 transparent; }
+  .chat-log::-webkit-scrollbar { width: 6px; }
+  .chat-log::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+  .chat-log .msg { margin-bottom: 6px; word-break: break-word; animation: fadeIn .2s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(3px);} to {opacity:1;transform:none;} }
+  .chat-log .msg .time { color: #5c6b7d; font-size: 10px; margin-right: 6px; }
+  .chat-log .msg.me { color: #7dd3fc; }
+  .chat-log .msg.them { color: #e6edf3; }
+  .chat-log .msg .name { font-weight: 600; margin-right: 4px; }
+  .chat-log .empty { color: #475569; font-style: italic; font-size: 12px; text-align: center; padding-top: 40px; }
+
+  .chat-input { display: flex; gap: 8px; margin-top: 8px; }
+  .chat-input input { flex: 1; min-width: 0; padding: 11px 14px; font-size: 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.4); color: #e6edf3; outline: none; text-align: left; letter-spacing: 0; transition: border-color .2s; }
+  .chat-input input:focus { border-color: #38bdf8; }
+  .chat-input input:disabled { opacity: .5; }
+  .chat-input button { flex: 0 0 auto; padding: 11px 18px; background: #0ea5e9; color: #04121c; font-size: 15px; font-weight: 700; border-radius: 10px; }
+  .chat-input button:disabled { opacity: .4; }
+
+  .log { margin-top: 14px; height: 52px; overflow-y: auto; font-size: 10.5px; color: #64748b; text-align: left; background: rgba(0,0,0,.25); border-radius: 10px; padding: 6px 10px; font-family: ui-monospace, monospace; line-height: 1.6; }
+  .log div { white-space: nowrap; }
+
+  .leave { margin-top: 14px; width: 100%; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>📻 Рация</h1>
+  <div class="sub">PUSH-TO-TALK · P2P · ЧАТ</div>
+
+  <!-- Настройка -->
+  <div class="panel" id="setupPanel">
+    <input id="password" type="text" placeholder="Пароль канала" autocomplete="off">
+    <div class="btns">
+      <button class="btn-create" id="createBtn">Создать</button>
+      <button class="btn-join"   id="joinBtn">Подключиться</button>
+    </div>
+    <label class="chat-only-label">
+      <input type="checkbox" id="chatOnly">
+      <span>Только текстовый чат (без микрофона)</span>
+    </label>
+    <div class="hint">
+      Введите одинаковый пароль на обоих устройствах.<br>
+      Один нажимает «Создать», второй — «Подключиться».
+    </div>
+  </div>
+
+  <!-- Рация -->
+  <div class="panel" id="radioPanel">
+    <div class="status">
+      <span class="dot wait" id="dot"></span>
+      <span id="statusText">Подключение…</span>
+    </div>
+
+    <div class="notice" id="notice" style="display:none"></div>
+
+    <div class="ptt disabled" id="pttBtn">ГОВОРИТЬ</div>
+    <div class="vumeter"><i id="vu"></i></div>
+
+    <audio id="remoteAudio" autoplay playsinline></audio>
+
+    <!-- Текстовый чат -->
+    <div class="chat">
+      <div class="chat-title">Текстовый чат</div>
+      <div class="chat-log" id="chatLog">
+        <div class="empty">Сообщений пока нет</div>
+      </div>
+      <div class="chat-input">
+        <input id="chatInput" type="text" placeholder="Сообщение…" maxlength="500" autocomplete="off" disabled>
+        <button id="chatSend" disabled>➤</button>
+      </div>
+    </div>
+
+    <div class="log" id="log"></div>
+
+    <button class="btn-leave leave" id="leaveBtn">Отключиться</button>
+  </div>
+</div>
+
+<script>
+/* ==================== НАСТРОЙКИ СЕРВЕРА ====================
+ * Если публичный сервер 0.peerjs.com недоступен — укажите свой.
+ * Пример для локального:
+ *   { host: '192.168.1.100', port: 9000, path: '/', secure: false }
+ * Пример для VPS с HTTPS:
+ *   { host: 'example.com', port: 443, path: '/myapp', secure: true }
+ * ========================================================= */
+const PEER_CONFIG = {
+  // host: 'your-server.com',
+  // port: 443,
+  // path: '/myapp',
+  // secure: true,
+};
+
+/* ==================== Состояние ==================== */
+let peer = null;
+let activeCall = null;
+let dataConn = null;
+let localStream = null;
+let isHost = false;
+let connected = false;
+let chatReady = false;
+let pttActive = false;
+let micAvailable = false;
+let reconnectTimer = null;
+
+const $ = id => document.getElementById(id);
+const setupPanel = $('setupPanel');
+const radioPanel = $('radioPanel');
+const statusText = $('statusText');
+const dot        = $('dot');
+const pttBtn     = $('pttBtn');
+const logBox     = $('log');
+const chatLog    = $('chatLog');
+const chatInput  = $('chatInput');
+const chatSend   = $('chatSend');
+const remoteAudio= $('remoteAudio');
+const vu         = $('vu');
+const notice     = $('notice');
+
+/* ==================== Утилиты ==================== */
+function log(msg) {
+  const t = new Date().toLocaleTimeString('ru-RU', {hour12:false});
+  const d = document.createElement('div');
+  d.textContent = `[${t}] ${msg}`;
+  logBox.appendChild(d);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+
+function setStatus(text, state) {
+  statusText.textContent = text;
+  dot.className = 'dot ' + (state || '');
+}
+
+function showNotice(text) {
+  notice.textContent = text;
+  notice.style.display = 'block';
+}
+function hideNotice() {
+  notice.style.display = 'none';
+  notice.textContent = '';
+}
+
+function hashPassword(str) {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
+}
+
+/* ==================== Тихий аудиопоток (когда нет микрофона) ====================
+ * Позволяет установить голосовой канал для приёма звука от собеседника,
+ * даже если у нас нет микрофона. Мы просто ничего не передаём.
+ * ========================================================================= */
+function createSilentStream() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const dst = ctx.createMediaStreamDestination();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    osc.connect(gain);
+    gain.connect(dst);
+    osc.start();
+    // Сохраняем контекст, чтобы его не удалил сборщик мусора
+    window.__silentCtx = ctx;
+    return dst.stream;
+  } catch (e) {
+    // Если Web Audio не работает — пустой поток. Голосовой канал не установится,
+    // но текстовый чат всё равно будет работать.
+    return new MediaStream();
+  }
+}
+
+/* ==================== Микрофон ==================== */
+async function initMic() {
+  // Проверим, доступен ли вообще API
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    micAvailable = false;
+    localStream = createSilentStream();
+    log('Микрофон недоступен в браузере — только чат');
+    return;
+  }
+
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: false
+    });
+    localStream.getAudioTracks().forEach(t => { t.enabled = false; });
+    micAvailable = true;
+    log('Микрофон готов');
+  } catch (e) {
+    micAvailable = false;
+    localStream = createSilentStream();
+    log('Микрофон недоступен (' + (e.name || 'ошибка') + ') — только чат');
+  }
+}
+
+/* ==================== Push-to-talk ==================== */
+function setPTT(on) {
+  if (!connected || !micAvailable || !localStream) return;
+  if (pttActive === on) return;
+  pttActive = on;
+  localStream.getAudioTracks().forEach(t => { t.enabled = on; });
+  pttBtn.classList.toggle('transmitting', on);
+  pttBtn.textContent = on ? '● В ЭФИРЕ' : 'ГОВОРИТЬ';
+  if (on) { log('▶ Передача'); startVu(); }
+  else { log('■ Приём'); stopVu(); }
+}
+
+let vuCtx = null, vuRaf = null, vuAnalyser = null, vuData = null;
+function startVu() {
+  if (!micAvailable) return;
+  try {
+    if (!vuCtx) {
+      vuCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = vuCtx.createMediaStreamSource(localStream);
+      vuAnalyser = vuCtx.createAnalyser();
+      vuAnalyser.fftSize = 512;
+      vuData = new Uint8Array(vuAnalyser.frequencyBinCount);
+      src.connect(vuAnalyser);
+    }
+    if (vuCtx.state === 'suspended') vuCtx.resume();
+    const tick = () => {
+      vuAnalyser.getByteFrequencyData(vuData);
+      let sum = 0;
+      for (let i = 0; i < vuData.length; i++) sum += vuData[i];
+      const lvl = Math.min(100, (sum / vuData.length) * 2.2);
+      vu.style.width = lvl + '%';
+      vu.style.background = lvl > 70 ? '#ef4444' : lvl > 40 ? '#f59e0b' : '#22c55e';
+      vuRaf = requestAnimationFrame(tick);
+    };
+    tick();
+  } catch (e) {}
+}
+function stopVu() {
+  if (vuRaf) cancelAnimationFrame(vuRaf);
+  vuRaf = null; vu.style.width = '0%';
+}
+
+/* ==================== Текстовый чат ==================== */
+function setupDataConn(conn) {
+  dataConn = conn;
+  conn.on('open', () => {
+    chatReady = true;
+    chatInput.disabled = false;
+    chatSend.disabled = false;
+    log('💬 Текстовый канал открыт');
+    chatInput.focus();
+  });
+  conn.on('data', (data) => {
+    if (!data || typeof data !== 'object') return;
+    if (data.type === 'msg' && typeof data.text === 'string') {
+      addChatMessage(data.text, false);
+    }
+  });
+  conn.on('close', () => {
+    chatReady = false;
+    dataConn = null;
+    chatInput.disabled = true;
+    chatSend.disabled = true;
+    log('💬 Текстовый канал закрыт');
+  });
+  conn.on('error', (err) => log('Ошибка чата: ' + err));
+}
+
+function addChatMessage(text, isMine) {
+  const empty = chatLog.querySelector('.empty');
+  if (empty) empty.remove();
+  const t = new Date().toLocaleTimeString('ru-RU', {hour12:false, hour:'2-digit', minute:'2-digit'});
+  const row = document.createElement('div');
+  row.className = 'msg ' + (isMine ? 'me' : 'them');
+  const timeSpan = document.createElement('span');
+  timeSpan.className = 'time'; timeSpan.textContent = t;
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'name'; nameSpan.textContent = isMine ? 'Вы:' : 'Собеседник:';
+  row.appendChild(timeSpan); row.appendChild(nameSpan);
+  row.appendChild(document.createTextNode(text));
+  chatLog.appendChild(row);
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+function sendChat() {
+  const text = chatInput.value.trim();
+  if (!text) return;
+  if (!dataConn || !dataConn.open) { log('Чат ещё не готов'); return; }
+  try {
+    dataConn.send({ type: 'msg', text });
+    addChatMessage(text, true);
+    chatInput.value = '';
+    chatInput.focus();
+  } catch (e) { log('Не удалось отправить: ' + e.message); }
+}
+
+/* ==================== Подключение ==================== */
+async function start(host) {
+  const pass = $('password').value.trim();
+  if (pass.length < 3) { alert('Пароль должен быть минимум 3 символа'); return; }
+
+  const chatOnly = $('chatOnly').checked;
+
+  $('createBtn').disabled = true;
+  $('joinBtn').disabled = true;
+
+  isHost = host;
+  setupPanel.style.display = 'none';
+  radioPanel.classList.add('active');
+  hideNotice();
+  log('Инициализация…');
+
+  // Микрофон — по возможности. Если пользователь выбрал "только чат" — не запрашиваем.
+  if (chatOnly) {
+    micAvailable = false;
+    localStream = createSilentStream();
+    log('Режим: только текстовый чат');
+  } else {
+    setStatus('Запрос доступа к микрофону…', 'wait');
+    await initMic();
+  }
+
+  // Настраиваем PTT в зависимости от наличия микрофона
+  if (micAvailable) {
+    pttBtn.textContent = 'ГОВОРИТЬ';
+    pttBtn.classList.add('disabled'); // активируется при подключении
+  } else {
+    pttBtn.classList.add('disabled');
+    pttBtn.textContent = 'НЕТ МИКРОФОНА';
+    showNotice(chatOnly
+      ? 'Вы вошли в режиме «только чат». Голосовая связь отключена, но вы можете писать сообщения.'
+      : 'Микрофон недоступен. Вы можете слушать собеседника и писать в чат.'
+    );
+  }
+
+  const roomId = 'radio-' + hashPassword(pass);
+  log('Канал: ' + roomId.slice(0, 14) + '…');
+
+  const peerOptions = {
+    ...PEER_CONFIG,
+    debug: 2,
+    config: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' }
+      ]
+    }
+  };
+
+  if (isHost) {
+    setStatus('Создание канала…', 'wait');
+    peer = new Peer(roomId, peerOptions);
+  } else {
+    setStatus('Поиск собеседника…', 'wait');
+    peer = new Peer(peerOptions);
+  }
+
+  peer.on('open', (id) => {
+    log('Мой ID: ' + id);
+    if (isHost) {
+      setStatus('Ожидание собеседника…', 'wait');
+    } else {
+      setStatus('Подключение к каналу…', 'wait');
+
+      // Голосовой канал — устанавливаем всегда (даже с "тихим" потоком),
+      // чтобы принимать голос собеседника.
+      if (localStream) {
+        const call = peer.call(roomId, localStream);
+        if (call) attachCall(call);
+      }
+
+      // Текстовый канал
+      const conn = peer.connect(roomId, { reliable: true });
+      setupDataConn(conn);
+    }
+  });
+
+  peer.on('call', (call) => {
+    log('Входящий вызов, отвечаю…');
+    call.answer(localStream);
+    attachCall(call);
+  });
+
+  peer.on('connection', (conn) => {
+    log('Входящий текстовый канал…');
+    setupDataConn(conn);
+  });
+
+  peer.on('error', (err) => {
+    log('ОШИБКА: ' + err.type);
+    if (err.type === 'unavailable-id') {
+      setStatus('Канал занят', '');
+      alert('Такой канал уже создан. Нажмите «Подключиться» или смените пароль.');
+    } else if (err.type === 'peer-unavailable') {
+      setStatus('Канал не найден', '');
+      alert('Не удалось найти канал.\nУбедитесь, что партнёр нажал «Создать» с тем же паролем.');
+    } else if (err.type === 'network' || err.type === 'server-error') {
+      setStatus('Ошибка сети', '');
+      log('Соединение с сервером потеряно. Пробуем переподключиться…');
+      scheduleReconnect();
+    } else {
+      setStatus('Ошибка сети', '');
+    }
+  });
+
+  peer.on('disconnected', () => {
+    log('Соединение с сервером потеряно, переподключение…');
+    setStatus('Переподключение…', 'wait');
+    scheduleReconnect();
+  });
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(() => {
+    if (peer && !peer.destroyed) {
+      try { peer.reconnect(); } catch (e) { log('Ошибка переподключения: ' + e.message); }
+    }
+  }, 3000);
+}
+
+function attachCall(call) {
+  activeCall = call;
+  call.on('stream', (remoteStream) => {
+    remoteAudio.srcObject = remoteStream;
+    remoteAudio.play().catch(()=>{});
+  });
+  call.on('open', () => {
+    connected = true;
+    setStatus('На связи', 'on');
+    // PTT активен только если есть микрофон
+    if (micAvailable) {
+      pttBtn.classList.remove('disabled');
+    }
+    log('✔ Голосовой канал установлен');
+  });
+  setTimeout(() => {
+    if (!connected && call.open) {
+      connected = true;
+      setStatus('На связи', 'on');
+      if (micAvailable) pttBtn.classList.remove('disabled');
+      log('✔ Голосовой канал установлен');
+    }
+  }, 800);
+  call.on('close', () => {
+    connected = false;
+    setStatus('Собеседник отключился', '');
+    pttBtn.classList.add('disabled');
+    setPTT(false);
+    log('✖ Голосовой канал закрыт');
+  });
+  call.on('error', (e) => log('Ошибка вызова: ' + e));
+}
+
+function reset() {
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  try { setPTT(false); } catch(e) {}
+  if (dataConn) { try { dataConn.close(); } catch(e){} dataConn = null; }
+  if (activeCall) { try { activeCall.close(); } catch(e){} activeCall = null; }
+  if (peer) { try { peer.destroy(); } catch(e){} peer = null; }
+  if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+  connected = false; chatReady = false; pttActive = false; micAvailable = false;
+  remoteAudio.srcObject = null;
+  radioPanel.classList.remove('active');
+  setupPanel.style.display = 'block';
+  $('createBtn').disabled = false;
+  $('joinBtn').disabled = false;
+  $('chatOnly').checked = false;
+  logBox.innerHTML = '';
+  chatLog.innerHTML = '<div class="empty">Сообщений пока нет</div>';
+  chatInput.value = ''; chatInput.disabled = true; chatSend.disabled = true;
+  pttBtn.classList.add('disabled'); pttBtn.classList.remove('transmitting'); pttBtn.textContent = 'ГОВОРИТЬ';
+  setStatus('', ''); stopVu();
+  hideNotice();
+}
+
+/* ==================== События ==================== */
+$('createBtn').addEventListener('click', () => start(true));
+$('joinBtn').addEventListener('click', () => start(false));
+$('leaveBtn').addEventListener('click', () => { log('Отключение…'); reset(); });
+$('password').addEventListener('keydown', (e) => { if (e.key === 'Enter') start(true); });
+
+pttBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  pttBtn.setPointerCapture(e.pointerId);
+  setPTT(true);
+});
+pttBtn.addEventListener('pointerup', (e) => { e.preventDefault(); setPTT(false); });
+pttBtn.addEventListener('pointercancel', () => setPTT(false));
+pttBtn.addEventListener('contextmenu', (e) => e.preventDefault());
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space' && !e.repeat && connected && micAvailable) {
+    e.preventDefault();
+    setPTT(true);
+  }
+});
+document.addEventListener('keyup', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') { e.preventDefault(); setPTT(false); }
+});
+
+chatSend.addEventListener('click', sendChat);
+chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendChat(); } });
+window.addEventListener('blur', () => setPTT(false));
+</script>
+</body>
+</html>
