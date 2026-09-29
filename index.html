@@ -2,53 +2,445 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Рация</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: system-ui, sans-serif;
-    background: #111; color: #eee;
-    min-height: 100vh; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 24px; padding: 20px;
-    user-select: none; -webkit-user-select: none;
-    touch-action: manipulation; overscroll-behavior: none;
+  :root {
+    --bg: #0d0f14;
+    --panel: #14171f;
+    --panel2: #1e2430;
+    --border: #242a37;
+    --text: #e8ebf2;
+    --muted: #8a93a7;
+    --accent: #ff8a3d;
+    --record: #ff3b3b;
   }
-  h1 { font-size: 20px; font-weight: 500; opacity: .7; }
-  #status { font-size: 14px; color: #888; min-height: 20px; }
-  #ptt {
-    width: 200px; height: 200px; border-radius: 50%; border: none;
-    background: radial-gradient(circle at 30% 30%, #4a4a4a, #1a1a1a);
-    color: #fff; font-size: 18px; font-weight: 600;
-    cursor: pointer; touch-action: none;
-    box-shadow: 0 10px 30px rgba(0,0,0,.5), inset 0 -4px 12px rgba(0,0,0,.6);
-    transition: transform .08s, box-shadow .15s, background .15s;
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    overflow: hidden;
     -webkit-tap-highlight-color: transparent;
   }
-  #ptt.active {
-    background: radial-gradient(circle at 30% 30%, #ff5555, #a00);
-    transform: scale(.96);
-    box-shadow: 0 0 40px rgba(255,80,80,.8), inset 0 -4px 12px rgba(0,0,0,.6);
+
+  .app {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    height: 100vh;
+    height: 100dvh;
   }
-  #ptt:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ===== Сайдбар ===== */
+  .sidebar {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    padding: 20px 16px;
+    gap: 20px;
+    overflow-y: auto;
+  }
+  .brand {
+    font-size: 18px; font-weight: 700; letter-spacing: .3px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .brand span { color: var(--accent); }
+
+  .section-label {
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: .8px; color: var(--muted);
+    font-weight: 600; margin-bottom: 8px;
+  }
+
+  .user-block input {
+    width: 100%;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .user-block input:focus { border-color: var(--accent); }
+
+  .channels { display: flex; flex-direction: column; gap: 4px; }
+  .channel {
+    display: flex; align-items: center; gap: 10px;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    text-align: left;
+    transition: background .15s, color .15s;
+    white-space: nowrap;
+  }
+  .channel:hover { background: var(--panel2); color: var(--text); }
+  .channel.active {
+    background: rgba(255,138,61,.12);
+    color: var(--accent);
+  }
+  .channel .emoji { font-size: 16px; }
+
+  .online { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  #userList { list-style: none; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+  .user-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .user-item .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #4a5365;
+    flex: 0 0 auto;
+    transition: background .15s, box-shadow .15s;
+  }
+  .user-item.talking .dot {
+    background: var(--record);
+    box-shadow: 0 0 10px var(--record);
+    animation: blink .8s ease-in-out infinite;
+  }
+  .user-item.talking { color: var(--text); }
+  @keyframes blink {
+    0%,100% { opacity: 1; }
+    50% { opacity: .35; }
+  }
+  .uname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ===== Основная область ===== */
+  .main {
+    display: flex; flex-direction: column;
+    min-width: 0; min-height: 0;
+  }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    flex: 0 0 auto;
+  }
+  .ch-info { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; }
+  .ch-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px rgba(255,138,61,.7);
+  }
+  .top-right { display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--muted); }
+  #status { display: flex; align-items: center; gap: 6px; }
+  #status::before {
+    content: ''; width: 7px; height: 7px; border-radius: 50%;
+    background: #4a5365;
+  }
+  #status.online::before { background: #34d17a; box-shadow: 0 0 8px #34d17a; }
+  #status.offline::before { background: #ff5555; box-shadow: 0 0 8px #ff5555; }
+  #status.rec::before { background: var(--record); box-shadow: 0 0 8px var(--record); animation: blink .8s infinite; }
+
+  /* ===== Кнопка PTT ===== */
+  .ptt-area {
+    flex: 0 0 auto;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px;
+    padding: 24px 20px;
+  }
+  #ptt {
+    position: relative;
+    width: 170px; height: 170px;
+    border-radius: 50%;
+    border: 1px solid #2e3646;
+    background: radial-gradient(circle at 32% 28%, #3a4356, #1a1f2a 70%);
+    color: #e8ebf2;
+    font-family: inherit;
+    font-size: 15px; font-weight: 700; letter-spacing: 1.5px;
+    cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px;
+    box-shadow:
+      0 16px 32px rgba(0,0,0,.55),
+      inset 0 -5px 14px rgba(0,0,0,.6),
+      inset 0 2px 4px rgba(255,255,255,.06);
+    transition: transform .08s ease, box-shadow .2s ease, background .2s ease;
+    -webkit-user-select: none; user-select: none;
+    touch-action: none;
+  }
+  .ptt-icon { font-size: 32px; filter: grayscale(.3); transition: filter .2s; }
+  #ptt:hover:not(:disabled) { border-color: #3c4render; border-color: #3c4658; }
+  #ptt.active {
+    background: radial-gradient(circle at 32% 28%, #ff6a5c, #b81f1f 70%);
+    color: #fff;
+    border-color: #ff6a5c;
+    transform: scale(.95);
+    box-shadow:
+      0 0 60px rgba(255,59,59,.55),
+      inset 0 -5px 14px rgba(0,0,0,.4);
+  }
+  #ptt.active .ptt-icon { filter: grayscale(0); }
+  #ptt.active::after {
+    content: '';
+    position: absolute; inset: -6px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,80,80,.75);
+    animation: ring 1.2s ease-out infinite;
+    pointer-events: none;
+  }
+  @keyframes ring {
+    0% { transform: scale(1); opacity: .9; }
+    100% { transform: scale(1.22); opacity: 0; }
+  }
+  #ptt:disabled { opacity: .45; cursor: not-allowed; }
+  #ptt:disabled::after { display: none; }
+  .hint { font-size: 12px; color: var(--muted); text-align: center; }
+
+  /* ===== Чат ===== */
+  .chat {
+    flex: 1 1 auto;
+    display: flex; flex-direction: column;
+    min-height: 0;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .messages {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 16px 20px;
+    display: flex; flex-direction: column; gap: 8px;
+    scroll-behavior: smooth;
+  }
+  .messages::-webkit-scrollbar { width: 8px; }
+  .messages::-webkit-scrollbar-thumb { background: #2a3040; border-radius: 4px; }
+
+  .msg {
+    max-width: 75%;
+    padding: 8px 13px;
+    border-radius: 14px;
+    font-size: 14px; line-height: 1.4;
+    word-wrap: break-word; overflow-wrap: anywhere;
+    animation: msgIn .18s ease-out;
+  }
+  @keyframes msgIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: none; }
+  }
+  .msg.other {
+    align-self: flex-start;
+    background: var(--panel2);
+    border-bottom-left-radius: 5px;
+  }
+  .msg.own {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #ff9a4d, #ff6a2b);
+    color: #26140a;
+    border-bottom-right-radius: 5px;
+    font-weight: 500;
+  }
+  .msg .meta {
+    font-size: 11px; font-weight: 700;
+    opacity: .8; margin-bottom: 2px;
+    display: flex; gap: 6px; align-items: baseline;
+  }
+  .msg .meta .time { font-weight: 400; opacity: .7; }
+  .msg.system {
+    align-self: center;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 2px 8px;
+    font-style: italic;
+    max-width: 90%;
+    text-align: center;
+  }
+
+  .chat-form {
+    flex: 0 0 auto;
+    display: flex; gap: 8px;
+    padding: 10px 16px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+  .chat-form input {
+    flex: 1; min-width: 0;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 16px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .chat-form input:focus { border-color: var(--accent); }
+  .chat-form button {
+    flex: 0 0 auto;
+    background: var(--accent);
+    color: #241000;
+    border: none;
+    width: 46px; height: 46px;
+    border-radius: 12px;
+    font-size: 18px;
+    cursor: pointer;
+    transition: filter .15s, transform .1s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .chat-form button:hover { filter: brightness(1.1); }
+  .chat-form button:active { transform: scale(.94); }
+
+  /* ===== Мобильная версия ===== */
+  @media (max-width: 760px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+
+    .sidebar {
+      flex-direction: row; align-items: center;
+      padding: 10px 12px;
+      gap: 10px;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto; overflow-y: hidden;
+    }
+    .sidebar::-webkit-scrollbar { display: none; }
+    .brand, .online, .section-label { display: none; }
+
+    .user-block { flex: 0 0 auto; width: 110px; }
+    .user-block input { padding: 8px 10px; font-size: 13px; }
+
+    .channels { flex-direction: row; gap: 6px; flex: 0 0 auto; }
+    .channel {
+      padding: 8px 12px; font-size: 13px;
+      background: var(--panel2);
+      border: 1px solid var(--border);
+    }
+    .channel .emoji { font-size: 14px; }
+    .channel.active { border-color: var(--accent); }
+
+    .topbar { padding: 10px 14px; }
+    .top-right { gap: 10px; font-size: 12px; }
+    #onlineBadge { display: none; }
+
+    .ptt-area { padding: 14px 12px; gap: 8px; }
+    #ptt { width: 118px; height: 118px; font-size: 12px; letter-spacing: 1px; }
+    .ptt-icon { font-size: 22px; }
+    .hint { font-size: 11px; }
+
+    .messages { padding: 12px 14px; }
+    .msg { max-width: 85%; font-size: 14px; }
+  }
 </style>
 </head>
 <body>
-  <h1>🎙️ Рация</h1>
-  <button id="ptt" disabled>СОЕДИНЕНИЕ...</button>
-  <div id="status"></div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">🎙️ <span>Рация</span></div>
+
+    <div class="user-block">
+      <div class="section-label">Ваше имя</div>
+      <input id="nameInput" maxlength="24" placeholder="Имя" autocomplete="off">
+    </div>
+
+    <div>
+      <div class="section-label">Каналы</div>
+      <div class="channels" id="channels">
+        <button class="channel" data-ch="general"><span class="emoji">📡</span>Общий</button>
+        <button class="channel" data-ch="alpha"><span class="emoji">🅰️</span>Альфа</button>
+        <button class="channel" data-ch="bravo"><span class="emoji">🅱️</span>Браво</button>
+        <button class="channel" data-ch="charlie"><span class="emoji">🎯</span>Чарли</button>
+      </div>
+    </div>
+
+    <div class="online">
+      <div class="section-label">В эфире · <span id="onlineCount">0</span></div>
+      <ul id="userList"></ul>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="ch-info">
+        <span class="ch-dot"></span>
+        <span id="channelName">Общий</span>
+      </div>
+      <div class="top-right">
+        <span id="onlineBadge">0 в эфире</span>
+        <span id="status">Соединение...</span>
+      </div>
+    </header>
+
+    <section class="ptt-area">
+      <button id="ptt" disabled>
+        <span class="ptt-icon">🎙️</span>
+        <span class="ptt-text">СОЕДИНЕНИЕ</span>
+      </button>
+      <div class="hint">Зажмите кнопку или пробел, чтобы говорить</div>
+    </section>
+
+    <section class="chat">
+      <div class="messages" id="messages"></div>
+      <form class="chat-form" id="chatForm">
+        <input id="chatInput" placeholder="Написать сообщение..." maxlength="500" autocomplete="off">
+        <button type="submit" aria-label="Отправить">➤</button>
+      </form>
+    </section>
+  </main>
+</div>
 
 <script>
 const SAMPLE_RATE = 16000;
-const $ptt = document.getElementById('ptt');
-const $status = document.getElementById('status');
+const CHANNEL_NAMES = { general:'Общий', alpha:'Альфа', bravo:'Браво', charlie:'Чарли' };
 
-let ws, audioCtx, processor, talking = false, nextPlayTime = 0;
+const $ptt        = document.getElementById('ptt');
+const $status     = document.getElementById('status');
+const $messages   = document.getElementById('messages');
+const $chatForm   = document.getElementById('chatForm');
+const $chatInput  = document.getElementById('chatInput');
+const $nameInput  = document.getElementById('nameInput');
+const $userList   = document.getElementById('userList');
+const $onlineCount= document.getElementById('onlineCount');
+const $onlineBadge= document.getElementById('onlineBadge');
+const $channelName= document.getElementById('channelName');
 
+let ws, audioCtx, processor;
+let talking = false;
+let nextPlayTime = 0;
+let currentChannel = 'general';
+
+const chatHistory = {};  // channel -> массив сообщений
+const talkingUsers = new Set();
+let users = [];
+
+// ===== Имя пользователя =====
+let myName = localStorage.getItem('walkie-name');
+if (!myName) {
+  myName = 'Гость-' + Math.floor(100 + Math.random() * 900);
+  localStorage.setItem('walkie-name', myName);
+}
+$nameInput.value = myName;
+
+$nameInput.addEventListener('change', () => {
+  const v = $nameInput.value.trim().slice(0, 24);
+  if (!v) { $nameInput.value = myName; return; }
+  myName = v;
+  localStorage.setItem('walkie-name', myName);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type:'join', channel: currentChannel, name: myName }));
+  }
+});
+
+// ===== Инициализация =====
 async function init() {
+  connectWs();
+
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
-
     const mic = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
     });
@@ -63,9 +455,8 @@ async function init() {
     mute.connect(audioCtx.destination);
 
     processor.onaudioprocess = onAudio;
-    connectWs();
   } catch (err) {
-    $status.textContent = 'Нет доступа к микрофону: ' + err.message;
+    setStatus('Нет микрофона — только чат', 'offline');
   }
 }
 
@@ -75,21 +466,160 @@ function connectWs() {
   ws.binaryType = 'arraybuffer';
 
   ws.onopen = () => {
-    $status.textContent = 'Онлайн';
+    ws.send(JSON.stringify({ type:'join', channel: currentChannel, name: myName }));
     $ptt.disabled = false;
-    $ptt.textContent = 'ГОВОРИТЬ';
+    setStatus('Онлайн', 'online');
   };
+
   ws.onclose = () => {
-    $status.textContent = 'Переподключение...';
     $ptt.disabled = true;
-    $ptt.textContent = 'ОФФЛАЙН';
+    setStatus('Переподключение...', 'offline');
+    talking = false;
+    $ptt.classList.remove('active');
+    $ptt.querySelector('.ptt-text').textContent = 'ОФФЛАЙН';
     setTimeout(connectWs, 2000);
   };
-  ws.onmessage = onMessage;
+
+  ws.onmessage = (e) => {
+    if (typeof e.data === 'string') {
+      let msg; try { msg = JSON.parse(e.data); } catch { return; }
+      handleServerMessage(msg);
+    } else {
+      playAudio(e.data);
+    }
+  };
 }
 
+function setStatus(text, cls) {
+  $status.textContent = text;
+  $status.className = cls || '';
+}
+
+function handleServerMessage(msg) {
+  switch (msg.type) {
+    case 'joined':
+      $ptt.querySelector('.ptt-text').textContent = 'ГОВОРИТЬ';
+      break;
+
+    case 'chat':
+      addMessage(currentChannel, {
+        kind: msg.from === myName ? 'own' : 'other',
+        from: msg.from,
+        text: msg.text,
+        time: msg.time
+      });
+      break;
+
+    case 'system':
+      addMessage(currentChannel, { kind:'system', text: msg.text, time: Date.now() });
+      break;
+
+    case 'users':
+      users = msg.list;
+      renderUsers();
+      break;
+
+    case 'talk':
+      if (msg.on) talkingUsers.add(msg.name);
+      else talkingUsers.delete(msg.name);
+      renderUsers();
+      break;
+  }
+}
+
+// ===== Сообщения =====
+function addMessage(channel, message) {
+  if (!chatHistory[channel]) chatHistory[channel] = [];
+  chatHistory[channel].push(message);
+  if (channel === currentChannel) {
+    renderMessage(message);
+    scrollToBottom();
+  }
+}
+
+function renderMessage(m) {
+  const el = document.createElement('div');
+  if (m.kind === 'system') {
+    el.className = 'msg system';
+    el.textContent = m.text;
+  } else {
+    el.className = 'msg ' + m.kind;
+    if (m.kind === 'other') {
+      el.innerHTML =
+        `<div class="meta">${escapeHtml(m.from)}<span class="time">${fmtTime(m.time)}</span></div>` +
+        `<div>${escapeHtml(m.text)}</div>`;
+    } else {
+      el.innerHTML =
+        `<div class="meta"><span class="time">${fmtTime(m.time)}</span></div>` +
+        `<div>${escapeHtml(m.text)}</div>`;
+    }
+  }
+  $messages.appendChild(el);
+}
+
+function renderChannelMessages() {
+  $messages.innerHTML = '';
+  const list = chatHistory[currentChannel] || [];
+  for (const m of list) renderMessage(m);
+  scrollToBottom();
+}
+
+function scrollToBottom() {
+  $messages.scrollTop = $messages.scrollHeight;
+}
+
+function fmtTime(ts) {
+  const d = new Date(ts);
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => (
+    { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
+  ));
+}
+
+// ===== Список пользователей =====
+function renderUsers() {
+  $userList.innerHTML = '';
+  for (const name of users) {
+    const li = document.createElement('li');
+    li.className = 'user-item' + (talkingUsers.has(name) ? ' talking' : '');
+    li.innerHTML = `<span class="dot"></span><span class="uname">${escapeHtml(name)}</span>`;
+    $userList.appendChild(li);
+  }
+  $onlineCount.textContent = users.length;
+  $onlineBadge.textContent = users.length + ' в эфире';
+}
+
+// ===== Переключение канала =====
+document.getElementById('channels').addEventListener('click', (e) => {
+  const btn = e.target.closest('.channel');
+  if (!btn) return;
+  const ch = btn.dataset.ch;
+  if (ch === currentChannel) return;
+
+  currentChannel = ch;
+  document.querySelectorAll('.channel').forEach(b =>
+    b.classList.toggle('active', b.dataset.ch === ch)
+  );
+  $channelName.textContent = CHANNEL_NAMES[ch] || ch;
+
+  // Сброс индикаторов
+  talkingUsers.clear();
+  users = [];
+  renderUsers();
+
+  renderChannelMessages();
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type:'join', channel: currentChannel, name: myName }));
+  }
+});
+
+// ===== Аудио: отправка =====
 function onAudio(e) {
-  if (!talking || ws.readyState !== WebSocket.OPEN) return;
+  if (!talking || !ws || ws.readyState !== WebSocket.OPEN) return;
   const input = e.inputBuffer.getChannelData(0);
   const pcm = new Int16Array(input.length);
   for (let i = 0; i < input.length; i++) {
@@ -99,8 +629,10 @@ function onAudio(e) {
   ws.send(pcm.buffer);
 }
 
-function onMessage(e) {
-  const int16 = new Int16Array(e.data);
+// ===== Аудио: воспроизведение =====
+function playAudio(arrayBuffer) {
+  if (!audioCtx) return;
+  const int16 = new Int16Array(arrayBuffer);
   const float32 = new Float32Array(int16.length);
   for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 0x8000;
 
@@ -117,30 +649,61 @@ function onMessage(e) {
   nextPlayTime += buffer.duration;
 }
 
-function start(e) {
+// ===== PTT =====
+function startTalk(e) {
   e?.preventDefault();
   if ($ptt.disabled) return;
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  if (talking) return;
   talking = true;
   $ptt.classList.add('active');
-  $status.textContent = '🔴 Передача...';
+  setStatus('Передача...', 'rec');
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type:'talk', on: true }));
+  }
 }
-function stop(e) {
+
+function stopTalk(e) {
   e?.preventDefault();
   if (!talking) return;
   talking = false;
   $ptt.classList.remove('active');
-  $status.textContent = 'Онлайн';
+  setStatus('Онлайн', 'online');
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type:'talk', on: false }));
+  }
 }
 
-$ptt.addEventListener('mousedown', start);
-$ptt.addEventListener('mouseup', stop);
-$ptt.addEventListener('mouseleave', stop);
-$ptt.addEventListener('touchstart', start, { passive: false });
-$ptt.addEventListener('touchend', stop);
-$ptt.addEventListener('touchcancel', stop);
-window.addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat) start(e); });
-window.addEventListener('keyup',   e => { if (e.code === 'Space') stop(e); });
+$ptt.addEventListener('mousedown', startTalk);
+$ptt.addEventListener('mouseup', stopTalk);
+$ptt.addEventListener('mouseleave', stopTalk);
+$ptt.addEventListener('touchstart', startTalk, { passive: false });
+$ptt.addEventListener('touchend', stopTalk);
+$ptt.addEventListener('touchcancel', stopTalk);
+$ptt.addEventListener('contextmenu', e => e.preventDefault());
+
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !e.repeat && document.activeElement !== $chatInput && document.activeElement !== $nameInput) {
+    startTalk(e);
+  }
+});
+window.addEventListener('keyup', e => {
+  if (e.code === 'Space') stopTalk(e);
+});
+
+// ===== Чат =====
+$chatForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = $chatInput.value.trim();
+  if (!text) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type:'chat', text }));
+  $chatInput.value = '';
+});
+
+// ===== Старт =====
+document.querySelector('.channel[data-ch="general"]').classList.add('active');
+$channelName.textContent = 'Общий';
 
 init();
 </script>
