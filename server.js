@@ -18,7 +18,7 @@ const CHANNELS = {
   general: { name: 'Общий', password: null },
   alpha:   { name: 'Альфа', password: '1111' },
   bravo:   { name: 'Браво', password: '2222' },
-  charlie: { name: 'Чарли', password: '3333' }
+  charlie: { name: 'Чарли', password: '0216' }
 };
 
 function getChannelCounts() {
