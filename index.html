@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Рация</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, sans-serif;
+    background: #111; color: #eee;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 24px; padding: 20px;
+    user-select: none; -webkit-user-select: none;
+    touch-action: manipulation; overscroll-behavior: none;
+  }
+  h1 { font-size: 20px; font-weight: 500; opacity: .7; }
+  #status { font-size: 14px; color: #888; min-height: 20px; }
+  #ptt {
+    width: 200px; height: 200px; border-radius: 50%; border: none;
+    background: radial-gradient(circle at 30% 30%, #4a4a4a, #1a1a1a);
+    color: #fff; font-size: 18px; font-weight: 600;
+    cursor: pointer; touch-action: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5), inset 0 -4px 12px rgba(0,0,0,.6);
+    transition: transform .08s, box-shadow .15s, background .15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #ptt.active {
+    background: radial-gradient(circle at 30% 30%, #ff5555, #a00);
+    transform: scale(.96);
+    box-shadow: 0 0 40px rgba(255,80,80,.8), inset 0 -4px 12px rgba(0,0,0,.6);
+  }
+  #ptt:disabled { opacity: .4; cursor: not-allowed; }
+</style>
+</head>
+<body>
+  <h1>🎙️ Рация</h1>
+  <button id="ptt" disabled>СОЕДИНЕНИЕ...</button>
+  <div id="status"></div>
+
+<script>
+const SAMPLE_RATE = 16000;
+const $ptt = document.getElementById('ptt');
+const $status = document.getElementById('status');
+
+let ws, audioCtx, processor, talking = false, nextPlayTime = 0;
+
+async function init() {
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: SAMPLE_RATE });
+
+    const mic = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    });
+
+    const src = audioCtx.createMediaStreamSource(mic);
+    processor = audioCtx.createScriptProcessor(2048, 1, 1);
+    src.connect(processor);
+
+    const mute = audioCtx.createGain();
+    mute.gain.value = 0;
+    processor.connect(mute);
+    mute.connect(audioCtx.destination);
+
+    processor.onaudioprocess = onAudio;
+    connectWs();
+  } catch (err) {
+    $status.textContent = 'Нет доступа к микрофону: ' + err.message;
+  }
+}
+
+function connectWs() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}`);
+  ws.binaryType = 'arraybuffer';
+
+  ws.onopen = () => {
+    $status.textContent = 'Онлайн';
+    $ptt.disabled = false;
+    $ptt.textContent = 'ГОВОРИТЬ';
+  };
+  ws.onclose = () => {
+    $status.textContent = 'Переподключение...';
+    $ptt.disabled = true;
+    $ptt.textContent = 'ОФФЛАЙН';
+    setTimeout(connectWs, 2000);
+  };
+  ws.onmessage = onMessage;
+}
+
+function onAudio(e) {
+  if (!talking || ws.readyState !== WebSocket.OPEN) return;
+  const input = e.inputBuffer.getChannelData(0);
+  const pcm = new Int16Array(input.length);
+  for (let i = 0; i < input.length; i++) {
+    const s = Math.max(-1, Math.min(1, input[i]));
+    pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+  }
+  ws.send(pcm.buffer);
+}
+
+function onMessage(e) {
+  const int16 = new Int16Array(e.data);
+  const float32 = new Float32Array(int16.length);
+  for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 0x8000;
+
+  const buffer = audioCtx.createBuffer(1, float32.length, SAMPLE_RATE);
+  buffer.copyToChannel(float32, 0);
+
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(audioCtx.destination);
+
+  const now = audioCtx.currentTime;
+  if (nextPlayTime < now + 0.05) nextPlayTime = now + 0.05;
+  src.start(nextPlayTime);
+  nextPlayTime += buffer.duration;
+}
+
+function start(e) {
+  e?.preventDefault();
+  if ($ptt.disabled) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  talking = true;
+  $ptt.classList.add('active');
+  $status.textContent = '🔴 Передача...';
+}
+function stop(e) {
+  e?.preventDefault();
+  if (!talking) return;
+  talking = false;
+  $ptt.classList.remove('active');
+  $status.textContent = 'Онлайн';
+}
+
+$ptt.addEventListener('mousedown', start);
+$ptt.addEventListener('mouseup', stop);
+$ptt.addEventListener('mouseleave', stop);
+$ptt.addEventListener('touchstart', start, { passive: false });
+$ptt.addEventListener('touchend', stop);
+$ptt.addEventListener('touchcancel', stop);
+window.addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat) start(e); });
+window.addEventListener('keyup',   e => { if (e.code === 'Space') stop(e); });
+
+init();
+</script>
+</body>
+</html>
