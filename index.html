@@ -108,6 +108,19 @@
     color: var(--accent);
     opacity: 1;
   }
+  /* Бейдж непрочитанных на канале */
+  .ch-badge {
+    background: var(--record);
+    color: #fff;
+    font-size: 10px; font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 8px;
+    min-width: 18px;
+    text-align: center;
+    line-height: 1.4;
+    flex: 0 0 auto;
+  }
+  .ch-badge[hidden] { display: none; }
 
   .online { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #userList { list-style: none; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
@@ -151,7 +164,7 @@
     background: var(--accent);
     box-shadow: 0 0 10px rgba(255,138,61,.7);
   }
-  .top-right { display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--muted); }
+  .top-right { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); }
   #status { display: flex; align-items: center; gap: 6px; }
   #status::before {
     content: ''; width: 7px; height: 7px; border-radius: 50%;
@@ -161,6 +174,28 @@
   #status.offline::before { background: #ff5555; box-shadow: 0 0 8px #ff5555; }
   #status.rec::before { background: var(--record); box-shadow: 0 0 8px var(--record); animation: blink .8s infinite; }
   #status.locked::before { background: var(--record); box-shadow: 0 0 12px var(--record); animation: blink .5s infinite; }
+
+  /* Кнопка-колокольчик */
+  #notifyBtn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    width: 32px; height: 32px;
+    font-size: 15px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s, color .15s, border-color .15s, transform .1s;
+    padding: 0;
+  }
+  #notifyBtn:hover { background: var(--panel2); color: var(--text); border-color: #3c4658; }
+  #notifyBtn:active { transform: scale(.94); }
+  #notifyBtn.on {
+    color: var(--accent);
+    border-color: rgba(255,138,61,.5);
+    background: rgba(255,138,61,.1);
+  }
+  #notifyBtn[hidden] { display: none; }
 
   /* ===== Кнопки PTT + Фиксация ===== */
   .ptt-area {
@@ -217,10 +252,8 @@
   }
   #ptt:disabled { opacity: .45; cursor: not-allowed; }
   #ptt:disabled::after { display: none; }
-  /* В режиме фиксации большая кнопка выглядит неактивной */
   #ptt.dimmed { opacity: .35; }
 
-  /* Кнопка фиксации */
   #pttLock {
     position: relative;
     width: 84px; height: 84px;
@@ -241,16 +274,13 @@
     touch-action: manipulation;
   }
   #pttLock .lock-icon { font-size: 24px; line-height: 1; transition: transform .15s; }
-  #pttLock .lock-label {
-    font-size: 9px; font-weight: 700; letter-spacing: 1px;
-  }
+  #pttLock .lock-label { font-size: 9px; font-weight: 700; letter-spacing: 1px; }
   #pttLock:hover:not(:disabled) { border-color: #3c4658; color: var(--text); }
   #pttLock:disabled { opacity: .4; cursor: not-allowed; }
   #pttLock:active:not(:disabled) { transform: scale(.94); }
   #pttLock.active {
     background: radial-gradient(circle at 32% 28%, #ff6a5c, #b81f1f 70%);
-    color: #fff;
-    border-color: #ff6a5c;
+    color: #fff; border-color: #ff6a5c;
     box-shadow:
       0 0 44px rgba(255,59,59,.55),
       inset 0 -3px 8px rgba(0,0,0,.4);
@@ -460,9 +490,10 @@
     .channel .emoji { font-size: 14px; }
     .channel.active { border-color: var(--accent); }
     .ch-count { padding: 1px 6px; min-width: 18px; }
+    .ch-badge { padding: 1px 5px; min-width: 16px; }
 
     .topbar { padding: 10px 14px; }
-    .top-right { gap: 10px; font-size: 12px; }
+    .top-right { gap: 8px; font-size: 12px; }
     #onlineBadge { display: none; }
 
     .ptt-area { padding: 14px 12px; gap: 8px; }
@@ -497,24 +528,28 @@
           <span class="emoji">📡</span>
           <span class="ch-name">Общий</span>
           <span class="ch-count" data-count>0</span>
+          <span class="ch-badge" data-badge hidden>0</span>
         </button>
         <button class="channel" data-ch="alpha">
           <span class="emoji">🅰️</span>
           <span class="ch-name">Альфа</span>
           <span class="lock" data-lock>🔒</span>
           <span class="ch-count" data-count>0</span>
+          <span class="ch-badge" data-badge hidden>0</span>
         </button>
         <button class="channel" data-ch="bravo">
           <span class="emoji">🅱️</span>
           <span class="ch-name">Браво</span>
           <span class="lock" data-lock>🔒</span>
           <span class="ch-count" data-count>0</span>
+          <span class="ch-badge" data-badge hidden>0</span>
         </button>
         <button class="channel" data-ch="charlie">
           <span class="emoji">🎯</span>
           <span class="ch-name">Чарли</span>
           <span class="lock" data-lock>🔒</span>
           <span class="ch-count" data-count>0</span>
+          <span class="ch-badge" data-badge hidden>0</span>
         </button>
       </div>
     </div>
@@ -533,6 +568,7 @@
       </div>
       <div class="top-right">
         <span id="onlineBadge">0 в эфире</span>
+        <button id="notifyBtn" title="Уведомления в браузере">🔕</button>
         <span id="status">Соединение...</span>
       </div>
     </header>
@@ -608,17 +644,19 @@ const $pwInput    = document.getElementById('pwInput');
 const $pwError    = document.getElementById('pwError');
 const $pwCancel   = document.getElementById('pwCancel');
 const $pwSubmit   = document.getElementById('pwSubmit');
+const $notifyBtn  = document.getElementById('notifyBtn');
 
 // Состояние
 let ws, audioCtx, processor;
-let pttHeld = false;      // зажата ли большая кнопка / пробел
-let locked = false;       // включён ли режим фиксации
-let talking = false;      // фактически ли сейчас передаём (pttHeld || locked)
+let pttHeld = false;
+let locked = false;
+let talking = false;
 let nextPlayTime = 0;
 let currentChannel = 'general';
 let users = [];
 let talkingUsers = new Set();
 const chatHistory = {};
+const unread = {};   // channel -> количество непрочитанных
 
 let pendingChannel = null;
 let pendingPassword = null;
@@ -628,6 +666,129 @@ try { channelPasswords = JSON.parse(localStorage.getItem('walkie-pw') || '{}') |
 function savePasswords() {
   try { localStorage.setItem('walkie-pw', JSON.stringify(channelPasswords)); } catch {}
 }
+
+// ===== Уведомления =====
+const NOTIFY_SUPPORTED = ('Notification' in window);
+let notifyEnabled = localStorage.getItem('walkie-notify') === '1';
+
+if (!NOTIFY_SUPPORTED) {
+  $notifyBtn.hidden = true;
+} else {
+  updateNotifyBtn();
+}
+
+function updateNotifyBtn() {
+  $notifyBtn.textContent = notifyEnabled ? '🔔' : '🔕';
+  $notifyBtn.classList.toggle('on', notifyEnabled);
+  $notifyBtn.title = notifyEnabled
+    ? 'Уведомления включены — нажмите, чтобы выключить'
+    : 'Включить уведомления в браузере';
+}
+
+async function enableNotifications() {
+  if (!NOTIFY_SUPPORTED) return false;
+
+  if (Notification.permission === 'denied') {
+    alert('Уведомления заблокированы в браузере.\n\n' +
+          'Как разрешить:\n' +
+          '• Chrome: нажмите на замочек рядом с адресом → Уведомления → Разрешить.\n' +
+          '• Safari (iPhone): Настройки → Safari → Уведомления.');
+    return false;
+  }
+
+  if (Notification.permission === 'granted') return true;
+
+  try {
+    const perm = await Notification.requestPermission();
+    return perm === 'granted';
+  } catch {
+    return false;
+  }
+}
+
+$notifyBtn.addEventListener('click', async () => {
+  if (!notifyEnabled) {
+    const ok = await enableNotifications();
+    if (!ok) return;
+    notifyEnabled = true;
+    localStorage.setItem('walkie-notify', '1');
+    updateNotifyBtn();
+    // Приветственное уведомление — чтобы пользователь понял, что всё работает
+    try {
+      new Notification('🔔 Уведомления включены', {
+        body: 'Вы будете получать оповещения о новых сообщениях и передачах.',
+        tag: 'walkie-hello'
+      });
+    } catch {}
+  } else {
+    notifyEnabled = false;
+    localStorage.setItem('walkie-notify', '0');
+    updateNotifyBtn();
+  }
+});
+
+// Показываем системное уведомление только когда вкладка не на переднем плане
+function notify(title, body, tag, onClickChannel) {
+  if (!notifyEnabled) return;
+  if (!NOTIFY_SUPPORTED) return;
+  if (Notification.permission !== 'granted') return;
+  if (!document.hidden) return;   // вкладка активна — не мешаем
+
+  try {
+    const n = new Notification(title, {
+      body,
+      tag,          // одинаковый tag заменяет предыдущее уведомление той же группы
+      renotify: false,
+      silent: false
+    });
+    n.onclick = () => {
+      window.focus();
+      if (onClickChannel) trySwitchChannel(onClickChannel);
+      n.close();
+    };
+    // Автоматически прячем через 6 секунд
+    setTimeout(() => { try { n.close(); } catch {} }, 6000);
+  } catch {}
+}
+
+// ===== Бейджи непрочитанных =====
+function bumpUnread(channel) {
+  if (channel === currentChannel) return;
+  unread[channel] = (unread[channel] || 0) + 1;
+  renderBadges();
+  updateTitle();
+}
+
+function clearUnread(channel) {
+  if (unread[channel]) {
+    unread[channel] = 0;
+    renderBadges();
+    updateTitle();
+  }
+}
+
+function renderBadges() {
+  document.querySelectorAll('.channel').forEach(btn => {
+    const ch = btn.dataset.ch;
+    const badge = btn.querySelector('[data-badge]');
+    if (!badge) return;
+    const n = unread[ch] || 0;
+    badge.hidden = n === 0;
+    badge.textContent = n > 99 ? '99+' : n;
+  });
+}
+
+function updateTitle() {
+  const total = Object.values(unread).reduce((a,b) => a + b, 0);
+  const base = 'Рация';
+  document.title = total > 0 ? `(${total}) ${base}` : base;
+}
+
+// Клик по вкладке — сбрасываем счётчик непрочитанных текущего канала
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) clearUnread(currentChannel);
+});
+window.addEventListener('focus', () => clearUnread(currentChannel));
 
 // ===== Имя =====
 let myName = localStorage.getItem('walkie-name');
@@ -650,6 +811,7 @@ async function init() {
   updateLocks();
   applyChannelUI(currentChannel);
   updateTalkingUI();
+  renderBadges();
   connectWs();
 
   try {
@@ -765,6 +927,13 @@ function handleServerMessage(msg) {
         text: msg.text,
         time: msg.time
       });
+      // Если сообщение не от нас — уведомление + счётчик непрочитанных
+      if (msg.from !== myName) {
+        if (document.hidden) {
+          notify(`💬 ${msg.from}`, msg.text, `chat-${currentChannel}`, currentChannel);
+        }
+        bumpUnread(currentChannel);
+      }
       break;
 
     case 'system':
@@ -776,11 +945,21 @@ function handleServerMessage(msg) {
       renderUsers();
       break;
 
-    case 'talk':
+    case 'talk': {
+      const wasTalking = talkingUsers.has(msg.name);
       if (msg.on) talkingUsers.add(msg.name);
       else talkingUsers.delete(msg.name);
       renderUsers();
+
+      // Уведомление только когда кто-то начал говорить (не каждое "on")
+      if (msg.on && !wasTalking && msg.name !== myName) {
+        if (document.hidden) {
+          notify(`🎙️ ${msg.name}`, `Говорит в канале «${CHANNELS[currentChannel].name}»`,
+                 `talk-${currentChannel}-${msg.name}`, currentChannel);
+        }
+      }
       break;
+    }
   }
 }
 
@@ -808,6 +987,7 @@ function applyChannelUI(ch) {
   users = [];
   renderUsers();
   renderChannelMessages();
+  clearUnread(ch);
 }
 
 // ===== Замки на каналах =====
@@ -865,19 +1045,22 @@ $pwModal.addEventListener('click', (e) => {
   }
 });
 
-// ===== Клик по каналу =====
-document.getElementById('channels').addEventListener('click', (e) => {
-  const btn = e.target.closest('.channel');
-  if (!btn) return;
-  const ch = btn.dataset.ch;
+// ===== Переключение канала =====
+function trySwitchChannel(ch) {
   if (ch === currentChannel) return;
-
   const info = CHANNELS[ch];
+  if (!info) return;
   if (info.locked && !channelPasswords[ch]) {
     openPasswordModal(ch);
     return;
   }
   sendJoin(ch, channelPasswords[ch]);
+}
+
+document.getElementById('channels').addEventListener('click', (e) => {
+  const btn = e.target.closest('.channel');
+  if (!btn) return;
+  trySwitchChannel(btn.dataset.ch);
 });
 
 // ===== Сообщения чата =====
@@ -977,19 +1160,16 @@ function playAudio(arrayBuffer) {
 
 // ===== Логика передачи =====
 function updateTalkingUI() {
-  // Внешний вид кнопок
   $ptt.classList.toggle('active', pttHeld);
   $ptt.classList.toggle('dimmed', locked && !pttHeld);
   $pttLock.classList.toggle('active', locked);
   $pttLock.querySelector('.lock-icon').textContent = locked ? '🔒' : '🔓';
   $pttLock.title = locked ? 'Отключить фиксацию (L)' : 'Зафиксировать передачу (L)';
 
-  // Текст на большой кнопке
   if (ws && ws.readyState === WebSocket.OPEN) {
     $ptt.querySelector('.ptt-text').textContent = locked ? 'ЭФИР' : 'ГОВОРИТЬ';
   }
 
-  // Подсказка под кнопками
   if (locked) {
     $hintText.innerHTML =
       '🔴 <b>Передача идёт</b> — микрофон включён постоянно.<br>' +
@@ -1000,7 +1180,6 @@ function updateTalkingUI() {
       'Нажмите <b>🔓</b> (или <b>L</b>) — режим без удержания.';
   }
 
-  // Статус в топбаре
   const shouldTalk = pttHeld || locked;
   if (shouldTalk !== talking) {
     talking = shouldTalk;
@@ -1016,18 +1195,17 @@ function updateTalkingUI() {
       }
     }
   } else {
-    // Обновление статуса без смены talking (например, чтобы отобразить/убрать "фиксация")
     if (talking) {
       setStatus(locked ? 'Передача (фиксация)' : 'Передача...', locked ? 'locked' : 'rec');
     }
   }
 }
 
-// --- Большая кнопка / пробел: удержание ---
+// --- Большая кнопка / пробел ---
 function startPTT(e) {
   e?.preventDefault();
   if ($ptt.disabled) return;
-  if (locked) return;                 // в режиме фиксации большая кнопка не нужна
+  if (locked) return;
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
   if (pttHeld) return;
   pttHeld = true;
@@ -1048,18 +1226,17 @@ $ptt.addEventListener('touchend', stopPTT);
 $ptt.addEventListener('touchcancel', stopPTT);
 $ptt.addEventListener('contextmenu', e => e.preventDefault());
 
-// --- Маленькая кнопка / клавиша L: фиксация ---
+// --- Маленькая кнопка / L ---
 function toggleLock(e) {
   e?.preventDefault();
   if ($pttLock.disabled) return;
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
   locked = !locked;
-  if (locked) pttHeld = false;        // если зажата большая — сбрасываем, фиксация перекрывает
+  if (locked) pttHeld = false;
   updateTalkingUI();
 }
 $pttLock.addEventListener('click', toggleLock);
 
-// --- Клавиатура ---
 window.addEventListener('keydown', e => {
   const inField = document.activeElement === $chatInput
                || document.activeElement === $nameInput
