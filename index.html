@@ -160,13 +160,18 @@
   #status.online::before { background: #34d17a; box-shadow: 0 0 8px #34d17a; }
   #status.offline::before { background: #ff5555; box-shadow: 0 0 8px #ff5555; }
   #status.rec::before { background: var(--record); box-shadow: 0 0 8px var(--record); animation: blink .8s infinite; }
+  #status.locked::before { background: var(--record); box-shadow: 0 0 12px var(--record); animation: blink .5s infinite; }
 
-  /* ===== Кнопка PTT ===== */
+  /* ===== Кнопки PTT + Фиксация ===== */
   .ptt-area {
     flex: 0 0 auto;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 14px; padding: 24px 20px;
   }
+  .ptt-row {
+    display: flex; align-items: center; gap: 22px;
+  }
+
   #ptt {
     position: relative;
     width: 170px; height: 170px;
@@ -212,7 +217,56 @@
   }
   #ptt:disabled { opacity: .45; cursor: not-allowed; }
   #ptt:disabled::after { display: none; }
+  /* В режиме фиксации большая кнопка выглядит неактивной */
+  #ptt.dimmed { opacity: .35; }
+
+  /* Кнопка фиксации */
+  #pttLock {
+    position: relative;
+    width: 84px; height: 84px;
+    border-radius: 50%;
+    border: 1px solid #2e3646;
+    background: radial-gradient(circle at 32% 28%, #2c3442, #161a22 70%);
+    color: var(--muted);
+    font-family: inherit;
+    cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px;
+    box-shadow:
+      0 8px 20px rgba(0,0,0,.5),
+      inset 0 -3px 8px rgba(0,0,0,.6),
+      inset 0 1px 2px rgba(255,255,255,.05);
+    transition: transform .08s, box-shadow .2s, background .2s, color .2s, border-color .15s;
+    -webkit-user-select: none; user-select: none;
+    touch-action: manipulation;
+  }
+  #pttLock .lock-icon { font-size: 24px; line-height: 1; transition: transform .15s; }
+  #pttLock .lock-label {
+    font-size: 9px; font-weight: 700; letter-spacing: 1px;
+  }
+  #pttLock:hover:not(:disabled) { border-color: #3c4658; color: var(--text); }
+  #pttLock:disabled { opacity: .4; cursor: not-allowed; }
+  #pttLock:active:not(:disabled) { transform: scale(.94); }
+  #pttLock.active {
+    background: radial-gradient(circle at 32% 28%, #ff6a5c, #b81f1f 70%);
+    color: #fff;
+    border-color: #ff6a5c;
+    box-shadow:
+      0 0 44px rgba(255,59,59,.55),
+      inset 0 -3px 8px rgba(0,0,0,.4);
+  }
+  #pttLock.active .lock-icon { transform: scale(1.06); }
+  #pttLock.active::after {
+    content: '';
+    position: absolute; inset: -5px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,80,80,.75);
+    animation: ring 1.4s ease-out infinite;
+    pointer-events: none;
+  }
+
   .hint { font-size: 12px; color: var(--muted); text-align: center; }
+  .hint b { color: var(--text); font-weight: 600; }
 
   /* ===== Чат ===== */
   .chat {
@@ -344,7 +398,7 @@
     padding: 12px 14px;
     color: var(--text);
     font-family: inherit;
-    font-size: 16px;   /* 16px — иначе iOS зумит страницу */
+    font-size: 16px;
     text-align: center;
     letter-spacing: 3px;
     outline: none;
@@ -412,8 +466,12 @@
     #onlineBadge { display: none; }
 
     .ptt-area { padding: 14px 12px; gap: 8px; }
-    #ptt { width: 118px; height: 118px; font-size: 12px; letter-spacing: 1px; }
-    .ptt-icon { font-size: 22px; }
+    .ptt-row { gap: 16px; }
+    #ptt { width: 124px; height: 124px; font-size: 12px; letter-spacing: 1px; }
+    .ptt-icon { font-size: 24px; }
+    #pttLock { width: 66px; height: 66px; }
+    #pttLock .lock-icon { font-size: 20px; }
+    #pttLock .lock-label { font-size: 8px; }
     .hint { font-size: 11px; }
 
     .messages { padding: 12px 14px; }
@@ -480,11 +538,20 @@
     </header>
 
     <section class="ptt-area">
-      <button id="ptt" disabled>
-        <span class="ptt-icon">🎙️</span>
-        <span class="ptt-text">СОЕДИНЕНИЕ</span>
-      </button>
-      <div class="hint">Зажмите кнопку или пробел, чтобы говорить</div>
+      <div class="ptt-row">
+        <button id="ptt" disabled>
+          <span class="ptt-icon">🎙️</span>
+          <span class="ptt-text">СОЕДИНЕНИЕ</span>
+        </button>
+        <button id="pttLock" disabled title="Зафиксировать передачу (клавиша L)">
+          <span class="lock-icon">🔓</span>
+          <span class="lock-label">ФИКС.</span>
+        </button>
+      </div>
+      <div class="hint" id="hintText">
+        Зажмите <b>кнопку</b> или <b>пробел</b> — говорить.<br>
+        Нажмите <b>🔓</b> (или <b>L</b>) — режим без удержания.
+      </div>
     </section>
 
     <section class="chat">
@@ -523,6 +590,7 @@ const CHANNELS = {
 
 // Элементы
 const $ptt        = document.getElementById('ptt');
+const $pttLock    = document.getElementById('pttLock');
 const $status     = document.getElementById('status');
 const $messages   = document.getElementById('messages');
 const $chatForm   = document.getElementById('chatForm');
@@ -532,6 +600,7 @@ const $userList   = document.getElementById('userList');
 const $onlineCount= document.getElementById('onlineCount');
 const $onlineBadge= document.getElementById('onlineBadge');
 const $channelName= document.getElementById('channelName');
+const $hintText   = document.getElementById('hintText');
 const $pwModal    = document.getElementById('pwModal');
 const $pwTitle    = document.getElementById('pwTitle');
 const $pwSubtitle = document.getElementById('pwSubtitle');
@@ -542,17 +611,18 @@ const $pwSubmit   = document.getElementById('pwSubmit');
 
 // Состояние
 let ws, audioCtx, processor;
-let talking = false;
+let pttHeld = false;      // зажата ли большая кнопка / пробел
+let locked = false;       // включён ли режим фиксации
+let talking = false;      // фактически ли сейчас передаём (pttHeld || locked)
 let nextPlayTime = 0;
 let currentChannel = 'general';
 let users = [];
 let talkingUsers = new Set();
 const chatHistory = {};
 
-let pendingChannel = null;   // канал, для которого спрашиваем пароль
-let pendingPassword = null;  // пароль, отправленный на сервер
+let pendingChannel = null;
+let pendingPassword = null;
 
-// Сохранённые пароли каналов (уже проверенные). Храним в localStorage
 let channelPasswords = {};
 try { channelPasswords = JSON.parse(localStorage.getItem('walkie-pw') || '{}') || {}; } catch {}
 function savePasswords() {
@@ -579,6 +649,7 @@ $nameInput.addEventListener('change', () => {
 async function init() {
   updateLocks();
   applyChannelUI(currentChannel);
+  updateTalkingUI();
   connectWs();
 
   try {
@@ -608,17 +679,19 @@ function connectWs() {
   ws.binaryType = 'arraybuffer';
 
   ws.onopen = () => {
-    // Пробуем войти в текущий канал (используем сохранённый пароль, если есть)
     sendJoin(currentChannel, channelPasswords[currentChannel]);
     $ptt.disabled = false;
+    $pttLock.disabled = false;
     setStatus('Онлайн', 'online');
   };
 
   ws.onclose = () => {
     $ptt.disabled = true;
+    $pttLock.disabled = true;
+    pttHeld = false;
+    locked = false;
+    updateTalkingUI();
     setStatus('Переподключение...', 'offline');
-    talking = false;
-    $ptt.classList.remove('active');
     $ptt.querySelector('.ptt-text').textContent = 'ОФФЛАЙН';
     setTimeout(connectWs, 2000);
   };
@@ -650,7 +723,6 @@ function handleServerMessage(msg) {
   switch (msg.type) {
 
     case 'joined': {
-      // Если ждали подтверждения по конкретному каналу — сохраняем пароль
       if (pendingChannel === msg.channel && pendingPassword) {
         channelPasswords[msg.channel] = pendingPassword;
         savePasswords();
@@ -660,13 +732,12 @@ function handleServerMessage(msg) {
       pendingPassword = null;
       closeModal();
       applyChannelUI(msg.channel);
-      $ptt.querySelector('.ptt-text').textContent = 'ГОВОРИТЬ';
+      $ptt.querySelector('.ptt-text').textContent = locked ? 'ЭФИР' : 'ГОВОРИТЬ';
       break;
     }
 
     case 'join-denied': {
       if (!$pwModal.hidden && pendingChannel === msg.channel) {
-        // Ошибка в модальном окне
         if (msg.reason === 'wrong-password') {
           $pwError.textContent = 'Неверный пароль';
         } else {
@@ -674,7 +745,6 @@ function handleServerMessage(msg) {
         }
         $pwInput.select();
       } else if (msg.channel === currentChannel) {
-        // Автоподключение упало (например, пароль сменили) — падаем в Общий
         delete channelPasswords[msg.channel];
         savePasswords();
         updateLocks();
@@ -734,7 +804,6 @@ function applyChannelUI(ch) {
   });
   $channelName.textContent = CHANNELS[ch].name;
 
-  // Сброс индикаторов, пока сервер не пришлёт новые
   talkingUsers.clear();
   users = [];
   renderUsers();
@@ -747,7 +816,6 @@ function updateLocks() {
     const ch = b.dataset.ch;
     const lock = b.querySelector('[data-lock]');
     if (!lock) return;
-    // Показываем замок, если канал защищён и пароль ещё не введён
     if (CHANNELS[ch].locked && !channelPasswords[ch]) lock.hidden = false;
     else lock.hidden = true;
   });
@@ -907,46 +975,105 @@ function playAudio(arrayBuffer) {
   nextPlayTime += buffer.duration;
 }
 
-// ===== PTT =====
-function startTalk(e) {
+// ===== Логика передачи =====
+function updateTalkingUI() {
+  // Внешний вид кнопок
+  $ptt.classList.toggle('active', pttHeld);
+  $ptt.classList.toggle('dimmed', locked && !pttHeld);
+  $pttLock.classList.toggle('active', locked);
+  $pttLock.querySelector('.lock-icon').textContent = locked ? '🔒' : '🔓';
+  $pttLock.title = locked ? 'Отключить фиксацию (L)' : 'Зафиксировать передачу (L)';
+
+  // Текст на большой кнопке
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    $ptt.querySelector('.ptt-text').textContent = locked ? 'ЭФИР' : 'ГОВОРИТЬ';
+  }
+
+  // Подсказка под кнопками
+  if (locked) {
+    $hintText.innerHTML =
+      '🔴 <b>Передача идёт</b> — микрофон включён постоянно.<br>' +
+      'Нажмите <b>🔒</b> (или <b>L</b>), чтобы выключить.';
+  } else {
+    $hintText.innerHTML =
+      'Зажмите <b>кнопку</b> или <b>пробел</b> — говорить.<br>' +
+      'Нажмите <b>🔓</b> (или <b>L</b>) — режим без удержания.';
+  }
+
+  // Статус в топбаре
+  const shouldTalk = pttHeld || locked;
+  if (shouldTalk !== talking) {
+    talking = shouldTalk;
+    if (talking) {
+      setStatus(locked ? 'Передача (фиксация)' : 'Передача...', locked ? 'locked' : 'rec');
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type:'talk', on: true }));
+      }
+    } else {
+      setStatus('Онлайн', 'online');
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type:'talk', on: false }));
+      }
+    }
+  } else {
+    // Обновление статуса без смены talking (например, чтобы отобразить/убрать "фиксация")
+    if (talking) {
+      setStatus(locked ? 'Передача (фиксация)' : 'Передача...', locked ? 'locked' : 'rec');
+    }
+  }
+}
+
+// --- Большая кнопка / пробел: удержание ---
+function startPTT(e) {
   e?.preventDefault();
   if ($ptt.disabled) return;
+  if (locked) return;                 // в режиме фиксации большая кнопка не нужна
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-  if (talking) return;
-  talking = true;
-  $ptt.classList.add('active');
-  setStatus('Передача...', 'rec');
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type:'talk', on: true }));
-  }
+  if (pttHeld) return;
+  pttHeld = true;
+  updateTalkingUI();
 }
-
-function stopTalk(e) {
+function stopPTT(e) {
   e?.preventDefault();
-  if (!talking) return;
-  talking = false;
-  $ptt.classList.remove('active');
-  setStatus('Онлайн', 'online');
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type:'talk', on: false }));
-  }
+  if (!pttHeld) return;
+  pttHeld = false;
+  updateTalkingUI();
 }
 
-$ptt.addEventListener('mousedown', startTalk);
-$ptt.addEventListener('mouseup', stopTalk);
-$ptt.addEventListener('mouseleave', stopTalk);
-$ptt.addEventListener('touchstart', startTalk, { passive: false });
-$ptt.addEventListener('touchend', stopTalk);
-$ptt.addEventListener('touchcancel', stopTalk);
+$ptt.addEventListener('mousedown', startPTT);
+$ptt.addEventListener('mouseup', stopPTT);
+$ptt.addEventListener('mouseleave', stopPTT);
+$ptt.addEventListener('touchstart', startPTT, { passive: false });
+$ptt.addEventListener('touchend', stopPTT);
+$ptt.addEventListener('touchcancel', stopPTT);
 $ptt.addEventListener('contextmenu', e => e.preventDefault());
 
+// --- Маленькая кнопка / клавиша L: фиксация ---
+function toggleLock(e) {
+  e?.preventDefault();
+  if ($pttLock.disabled) return;
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  locked = !locked;
+  if (locked) pttHeld = false;        // если зажата большая — сбрасываем, фиксация перекрывает
+  updateTalkingUI();
+}
+$pttLock.addEventListener('click', toggleLock);
+
+// --- Клавиатура ---
 window.addEventListener('keydown', e => {
-  if (e.code === 'Space' && !e.repeat && document.activeElement !== $chatInput && document.activeElement !== $nameInput) {
-    startTalk(e);
+  const inField = document.activeElement === $chatInput
+               || document.activeElement === $nameInput
+               || document.activeElement === $pwInput;
+  if (inField) return;
+
+  if (e.code === 'Space' && !e.repeat) {
+    startPTT(e);
+  } else if (e.code === 'KeyL' && !e.repeat) {
+    toggleLock(e);
   }
 });
 window.addEventListener('keyup', e => {
-  if (e.code === 'Space') stopTalk(e);
+  if (e.code === 'Space') stopPTT(e);
 });
 
 // ===== Чат =====
